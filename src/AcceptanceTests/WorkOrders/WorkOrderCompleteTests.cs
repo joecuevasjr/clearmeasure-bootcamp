@@ -1,4 +1,5 @@
 using ClearMeasure.Bootcamp.AcceptanceTests.Extensions;
+using ClearMeasure.Bootcamp.Core.Model.StateCommands;
 using ClearMeasure.Bootcamp.Core.Queries;
 using ClearMeasure.Bootcamp.UI.Shared.Pages;
 
@@ -32,12 +33,12 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
                 Timeout = 10000 // 10 seconds
             });
 
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Title))).ToBeDisabledAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Description)))
             .ToHaveValueAsync(expectedDescription);
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Description))).ToBeDisabledAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Status)))
             .ToHaveTextAsync(WorkOrderStatus.Complete.FriendlyName);
+        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.CommandButton) + CompleteToAssignedCommand.Name))
+            .ToBeVisibleAsync();
 
 
         var displayedDateTime = await Page.GetDateTimeFromTestIdAsync(nameof(WorkOrderManage.Elements.CompletedDate));
@@ -48,7 +49,7 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
     }
 
     [Test, Retry(2)]
-    public async Task CompleteWorkOrderWorkflow()
+    public async Task ReopenCompletedWorkOrderWorkflow()
     {
         await LoginAsCurrentUser();
 
@@ -63,12 +64,15 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
 
         order = await CompleteExistingWorkOrder(order);
         order = await ClickWorkOrderNumberFromSearchPage(order);
+        order = await ReopenExistingWorkOrder(order);
+        order = await ClickWorkOrderNumberFromSearchPage(order);
 
         var rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ??
                              throw new InvalidOperationException();
-        rehyratedOrder.Status.ShouldBe(WorkOrderStatus.Complete);
+        rehyratedOrder.Status.ShouldBe(WorkOrderStatus.Assigned);
+        rehyratedOrder.CompletedDate.ShouldBeNull();
 
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.ReadOnlyMessage)))
-            .ToHaveTextAsync("This work order is read-only for you at this time.");
+        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Status)))
+            .ToHaveTextAsync(WorkOrderStatus.Assigned.FriendlyName);
     }
 }
