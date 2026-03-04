@@ -206,4 +206,41 @@ public class McpWorkOrderToolTests
         wo.Status.ShouldBe(WorkOrderStatus.Assigned);
         result.ShouldContain("Assigned");
     }
+
+    [Test]
+    public async Task ShouldExecuteReopenCommand()
+    {
+        var creator = new Employee("creator2", "Ned", "Flanders", "ned@test.com");
+        var assignee = new Employee("nvanhouten", "Milhouse", "VanHouten", "milhouse@test.com");
+        var completedOrder = new WorkOrder
+        {
+            Creator = creator,
+            Assignee = assignee,
+            Number = "WO-779",
+            Title = "Replace projector lamp",
+            Status = WorkOrderStatus.Complete,
+            CompletedDate = DateTime.UtcNow
+        };
+
+        using (var context = TestHost.GetRequiredService<DbContext>())
+        {
+            context.Add(creator);
+            context.Add(assignee);
+            context.Add(completedOrder);
+            await context.SaveChangesAsync();
+        }
+
+        var bus = TestHost.GetRequiredService<IBus>();
+        var result = await WorkOrderTools.ExecuteWorkOrderCommand(bus, "WO-779", "CompleteToAssignedCommand", "nvanhouten");
+
+        WorkOrder? wo;
+        using (var context = TestHost.GetRequiredService<DbContext>())
+        {
+            wo = context.Set<WorkOrder>().Single(wo => wo.Number == "WO-779");
+        }
+
+        wo.Status.ShouldBe(WorkOrderStatus.Assigned);
+        wo.CompletedDate.ShouldBeNull();
+        result.ShouldContain("Assigned");
+    }
 }
