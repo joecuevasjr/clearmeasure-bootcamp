@@ -33,6 +33,13 @@ public class StateCommandHandler(DbContext dbContext, TimeProvider time, IDistri
             dbContext.Update(order);
         }
 
+        if (order.Assignee == null)
+        {
+            // Persist nullable assignee relationship updates for detached work orders.
+            dbContext.Entry(order).Property("AssigneeId").CurrentValue = null;
+            dbContext.Entry(order).Property("AssigneeId").IsModified = true;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var loweredTransitionVerb = request.TransitionVerbPastTense.ToLower();
