@@ -41,5 +41,6 @@ public class McpReferenceResourceTests
         result.ShouldContain("DraftToAssignedCommand");
         result.ShouldContain("AssignedToInProgressCommand");
         result.ShouldContain("InProgressToCompleteCommand");
+        result.ShouldContain("CompleteToAssignedCommand");
     }
 }

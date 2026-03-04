@@ -206,4 +206,49 @@ public class McpWorkOrderToolTests
         wo.Status.ShouldBe(WorkOrderStatus.Assigned);
         result.ShouldContain("Assigned");
     }
+
+    [Test]
+    public async Task ShouldExecuteReassignFromCompletedCommand()
+    {
+        var creator = new Employee("creator2", "Timothy", "Lovejoy", "timothy2@test.com");
+        var originalAssignee = new Employee("gwillie2", "Groundskeeper", "Willie", "willie2@test.com");
+        var newAssignee = new Employee("lmarge2", "Marge", "Simpson", "marge2@test.com");
+        var completedOrder = new WorkOrder
+        {
+            Creator = creator,
+            Assignee = originalAssignee,
+            Number = "WO-779",
+            Title = "Fix pew",
+            Status = WorkOrderStatus.Complete,
+            CompletedDate = DateTime.UtcNow
+        };
+
+        using (var context = TestHost.GetRequiredService<DbContext>())
+        {
+            context.Add(creator);
+            context.Add(originalAssignee);
+            context.Add(newAssignee);
+            context.Add(completedOrder);
+            await context.SaveChangesAsync();
+        }
+
+        var bus = TestHost.GetRequiredService<IBus>();
+        var result = await WorkOrderTools.ExecuteWorkOrderCommand(
+            bus,
+            "WO-779",
+            "CompleteToAssignedCommand",
+            "creator2",
+            "lmarge2");
+
+        WorkOrder? rehydrated;
+        using (var context = TestHost.GetRequiredService<DbContext>())
+        {
+            rehydrated = context.Set<WorkOrder>().Single(wo => wo.Number == "WO-779");
+        }
+
+        rehydrated.Status.ShouldBe(WorkOrderStatus.Assigned);
+        rehydrated.Assignee!.UserName.ShouldBe("lmarge2");
+        rehydrated.CompletedDate.ShouldBeNull();
+        result.ShouldContain("Assigned");
+    }
 }
