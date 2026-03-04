@@ -1,5 +1,8 @@
 using ClearMeasure.Bootcamp.AcceptanceTests.Extensions;
+using ClearMeasure.Bootcamp.Core.Model;
+using ClearMeasure.Bootcamp.Core.Model.StateCommands;
 using ClearMeasure.Bootcamp.Core.Queries;
+using ClearMeasure.Bootcamp.IntegrationTests;
 using ClearMeasure.Bootcamp.UI.Shared.Pages;
 
 namespace ClearMeasure.Bootcamp.AcceptanceTests.WorkOrders;
@@ -32,10 +35,8 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
                 Timeout = 10000 // 10 seconds
             });
 
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Title))).ToBeDisabledAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Description)))
             .ToHaveValueAsync(expectedDescription);
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Description))).ToBeDisabledAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Status)))
             .ToHaveTextAsync(WorkOrderStatus.Complete.FriendlyName);
 
@@ -48,9 +49,17 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
     }
 
     [Test, Retry(2)]
-    public async Task CompleteWorkOrderWorkflow()
+    public async Task ShouldReassignCompletedWorkOrder()
     {
         await LoginAsCurrentUser();
+
+        var reassignedEmployee = Faker<Employee>();
+        reassignedEmployee.UserName = $"reassign_{TestTag}_{reassignedEmployee.UserName}";
+        using (var context = TestHost.NewDbContext())
+        {
+            context.Add(reassignedEmployee);
+            context.SaveChanges();
+        }
 
         var order = await CreateAndSaveNewWorkOrder();
         order = await ClickWorkOrderNumberFromSearchPage(order);
@@ -64,11 +73,17 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
         order = await CompleteExistingWorkOrder(order);
         order = await ClickWorkOrderNumberFromSearchPage(order);
 
-        var rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ??
-                             throw new InvalidOperationException();
-        rehyratedOrder.Status.ShouldBe(WorkOrderStatus.Complete);
+        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Assignee))).ToBeEnabledAsync();
+        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.CommandButton) + CompleteToAssignedCommand.Name))
+            .ToBeVisibleAsync();
 
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.ReadOnlyMessage)))
-            .ToHaveTextAsync("This work order is read-only for you at this time.");
+        order = await ReassignCompletedWorkOrder(order, reassignedEmployee.UserName);
+        order = await ClickWorkOrderNumberFromSearchPage(order);
+
+        var rehydratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ??
+                             throw new InvalidOperationException();
+        rehydratedOrder.Status.ShouldBe(WorkOrderStatus.Assigned);
+        rehydratedOrder.Assignee!.UserName.ShouldBe(reassignedEmployee.UserName);
+        rehydratedOrder.CompletedDate.ShouldBeNull();
     }
 }

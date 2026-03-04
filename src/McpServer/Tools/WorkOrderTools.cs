@@ -83,13 +83,13 @@ public class WorkOrderTools
         }
     }
 
-    [McpServerTool(Name = "execute-work-order-command"), Description("Executes a state command on a work order. Available commands: DraftToAssignedCommand (requires assigneeUsername), AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, AssignedToCancelledCommand.")]
+    [McpServerTool(Name = "execute-work-order-command"), Description("Executes a state command on a work order. Available commands: DraftToAssignedCommand (requires assigneeUsername), CompleteToAssignedCommand (requires assigneeUsername), Reassign (requires assigneeUsername), AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, AssignedToCancelledCommand.")]
     public static async Task<string> ExecuteWorkOrderCommand(
         IBus bus,
         [Description("The work order number")] string workOrderNumber,
         [Description("The command name (e.g., DraftToAssignedCommand)")] string commandName,
         [Description("Username of the employee executing the command")] string executingUsername,
-        [Description("Username of the employee to assign the work order to (required for DraftToAssignedCommand)")] string? assigneeUsername = null)
+        [Description("Username of the employee to assign the work order to (required for DraftToAssignedCommand and CompleteToAssignedCommand)")] string? assigneeUsername = null)
     {
         var workOrder = await bus.Send(new WorkOrderByNumberQuery(workOrderNumber));
         if (workOrder == null)
@@ -103,11 +103,11 @@ public class WorkOrderTools
             return $"Employee with username '{executingUsername}' not found.";
         }
 
-        if (commandName == "DraftToAssignedCommand")
+        if (commandName is "DraftToAssignedCommand" or "CompleteToAssignedCommand" or "Reassign")
         {
             if (string.IsNullOrEmpty(assigneeUsername))
             {
-                return "DraftToAssignedCommand requires an assigneeUsername parameter.";
+                return $"{commandName} requires an assigneeUsername parameter.";
             }
 
             var assignee = await FindEmployeeByUsername(bus, assigneeUsername);
@@ -122,6 +122,8 @@ public class WorkOrderTools
         StateCommandBase? command = commandName switch
         {
             "DraftToAssignedCommand" => new DraftToAssignedCommand(workOrder, user),
+            "CompleteToAssignedCommand" => new CompleteToAssignedCommand(workOrder, user),
+            "Reassign" => new CompleteToAssignedCommand(workOrder, user),
             "AssignedToInProgressCommand" => new AssignedToInProgressCommand(workOrder, user),
             "InProgressToAssignedCommand" => new InProgressToAssignedCommand(workOrder, user),
             "Shelve" => new InProgressToAssignedCommand(workOrder, user),
@@ -132,7 +134,7 @@ public class WorkOrderTools
 
         if (command == null)
         {
-            return $"Unknown command '{commandName}'. Available commands: DraftToAssignedCommand, AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, AssignedToCancelledCommand.";
+            return $"Unknown command '{commandName}'. Available commands: DraftToAssignedCommand, CompleteToAssignedCommand, Reassign, AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, AssignedToCancelledCommand.";
         }
 
         if (!command.IsValid())
