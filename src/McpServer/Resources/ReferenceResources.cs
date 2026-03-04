@@ -51,6 +51,7 @@ public class ReferenceResources
             },
             Assigned = new[]
             {
+                new { Command = "AssignedToDraftCommand", TargetStatus = "Draft" },
                 new { Command = "AssignedToInProgressCommand", TargetStatus = "InProgress" }
             },
             InProgress = new[]

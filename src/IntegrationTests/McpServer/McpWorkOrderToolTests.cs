@@ -173,6 +173,50 @@ public class McpWorkOrderToolTests
     }
 
     [Test]
+    public async Task ShouldExecuteUnassignCommand()
+    {
+        var creator = new Employee("user1", "John", "Doe", "john@test.com")
+        {
+            Id = Guid.NewGuid()
+        };
+        var assignee = new Employee("user2", "Jane", "Doe", "jane@test.com")
+        {
+            Id = Guid.NewGuid()
+        };
+        var assignedOrder = new WorkOrder
+        {
+            Creator = creator,
+            Assignee = assignee,
+            Number = "WO-010",
+            Title = "Assigned order",
+            Status = WorkOrderStatus.Assigned,
+            AssignedDate = DateTime.UtcNow
+        };
+
+        using (var context = TestHost.GetRequiredService<DbContext>())
+        {
+            context.Add(creator);
+            context.Add(assignee);
+            context.Add(assignedOrder);
+            await context.SaveChangesAsync();
+        }
+
+        var bus = TestHost.GetRequiredService<IBus>();
+        var result = await WorkOrderTools.ExecuteWorkOrderCommand(bus, "WO-010", "AssignedToDraftCommand", "user1");
+
+        WorkOrder? wo = null;
+        using (var context = TestHost.GetRequiredService<DbContext>())
+        {
+            wo = context.Set<WorkOrder>().Single(wo => wo.Number == "WO-010");
+        }
+
+        wo.Status.ShouldBe(WorkOrderStatus.Draft);
+        wo.Assignee.ShouldBeNull();
+        wo.AssignedDate.ShouldBeNull();
+        result.ShouldContain("Draft");
+    }
+
+    [Test]
     public async Task ShouldExecuteShelveCommand()
     {
         var creator = new Employee("creator1", "Timothy", "Lovejoy", "timothy@test.com");

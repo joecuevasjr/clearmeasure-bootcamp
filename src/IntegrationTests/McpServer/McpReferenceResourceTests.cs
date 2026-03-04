@@ -39,6 +39,7 @@ public class McpReferenceResourceTests
         var result = ReferenceResources.GetStatusTransitions();
 
         result.ShouldContain("DraftToAssignedCommand");
+        result.ShouldContain("AssignedToDraftCommand");
         result.ShouldContain("AssignedToInProgressCommand");
         result.ShouldContain("InProgressToCompleteCommand");
     }
